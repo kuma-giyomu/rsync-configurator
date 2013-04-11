@@ -1,0 +1,318 @@
+#!/usr/bin/env ruby
+
+class RsyncConfigurator
+
+  DEFAULT_CONFIG_PATH = '/etc'
+
+  SERVER_CONFIG_NAME = 'rsyncd.conf'
+
+  SERVER_SECRETS_CONFIG_NAME = 'rsyncd.secrets'
+
+  CONFIG_SECRETS_FILE = 'secrets file'
+
+  CONFIG_AUTH_USERS = 'auth users'
+
+  CONFIG_PATH = 'path'
+
+  CONFIG_READ_ONLY = 'path'
+
+  REPOSITORY_DEV_SUFFIX = '-dev'
+
+  REPOSITORY_BASE_PATH = '/Shared Items/rsync_assets/'
+
+  def initialize(options = {})
+    @options = options
+    parse_config
+    parse_secrets_file
+  end
+
+  def repo_add(repository_name = nil, *write_users)
+    raise "Repository name required" if repository_name.nil? 
+    raise "Repository already exists" unless @repositories[repository_name].nil?
+
+    raise "Invalid repository name, only alphanumerics, hyphens and underscore allowed" unless repository_name =~ /^[a-zA-Z0-9_-]+$/
+
+    public_user = repository_name.downcase
+
+    @repositories[repository_name] = {
+      CONFIG_PATH => "#{REPOSITORY_BASE_PATH}#{repository_name}",
+      CONFIG_AUTH_USERS => public_user
+    }
+
+    @repositories[repository_name + REPOSITORY_DEV_SUFFIX] = {
+      CONFIG_PATH => "#{REPOSITORY_BASE_PATH}#{repository_name}",
+      CONFIG_AUTH_USERS => write_users.join(', ')
+    }
+
+    if @users[public_user].nil?
+			write_users << public_user
+		end
+
+		write_user_file = false
+
+ 		write_users.each do |user|
+ 			if @users[user].nil?
+ 				@users[user] = generate_password
+ 				puts "Adding new user account #{user}..."
+ 				puts "Generated password: #{@users[user]}"
+ 				write_user_file = true
+ 			end
+ 		end
+
+ 		if write_user_file
+ 			puts "Updating secrets file..."
+ 			write_to_file secrets_file_path(true), to_secrets_file
+ 			puts "Done."
+ 		end
+
+ 		puts "Updating server config file..."
+ 		write_to_file server_config_path, to_config_file
+ 		puts "Done."
+	end
+
+  def repo_del(repository_name = nil)
+		raise "Repository name required" if repository_name.nil?
+    raise "Unknown repository" if @repositories[repository_name].nil?
+
+		puts "Removing repositories and the associated public user..."
+		@repositories.delete repository_name
+		@repositories.delete (repository_name + REPOSITORY_DEV_SUFFIX)
+
+		@users.delete repository_name.downcase
+
+		puts "Updating secrets file..."
+		write_to_file secrets_file_path(true), to_secrets_file
+		puts "Done."
+	
+ 		puts "Updating server config file..."
+ 		write_to_file server_config_path, to_config_file
+ 		puts "Done."
+  end
+
+  alias_method :repo_delete, :repo_del
+
+  def repo_list
+    content = []
+
+    content << 'Defined repositories'
+
+    show_list = lambda do|config| 
+      return if config.nil? || config[CONFIG_AUTH_USERS].nil?
+      config[CONFIG_AUTH_USERS].split(/\s*,\s*/).each do |user|
+        content << "\t\t#{user}"
+      end
+    end
+
+    @repositories.select {|key| key !~ /-dev$/}.each do |repo_alias, config|
+      dev_config = @repositories[repo_alias + '-dev']
+
+      content << ""
+      content << "[#{repo_alias}]"
+      content << "\tread access:"
+      show_list.call config
+      content << "\twrite access:"
+      show_list.call dev_config
+    end
+
+    puts content.join "\n"
+  end
+
+  def user_add
+    puts "user_add"
+  end
+
+  def user_del
+    puts "user_del"
+  end
+
+  alias_method :user_delete, :user_del
+
+  def user_list
+    content = []
+
+    content << 'Defined users'
+
+    @users.each do |handle|
+      content << ""
+      content << handle
+    end
+
+    puts content.join "\n"
+  end
+
+  def help
+    puts <<-EOL
+Usage: rsync-configure SUBJECT [ACTION] <params>
+
+Where SUBJECT is one of:
+  repo 
+  user
+
+and ACTION one of:
+  add
+  del
+  list
+EOL
+  end
+
+  def dump
+    puts "*** server config file ***\n\n"
+    puts to_config_file
+
+    unless secrets_file_path.nil?
+      puts "\n"
+      puts "*** secrets config file ***\n\n"
+      puts to_secrets_file
+    end
+  end
+
+  private
+
+  def generate_password(length = 8)
+    pool =  [('a'..'z'),('A'..'Z'),('0'..'9')].map{|i| i.to_a}.flatten
+		(0...length).map{ pool[rand(pool.length)] }.join
+  end
+
+  def to_config_file
+    content = []
+
+    @global_config.each do |key, value|
+      content << "#{key} = #{value}"
+    end
+
+    content << ""
+
+    @repositories.each do |repo_alias, repo_config|
+      content << "[#{repo_alias}]"
+      repo_config.each do |key, value|
+        content << "\t#{key} = #{value}"
+      end
+
+      content << ""
+    end
+
+    content.join "\n"
+  end
+
+  def to_secrets_file
+    return '' unless @users
+
+    content = []
+
+    @users.each do |key, value|
+      content << "#{key}:#{value}"
+    end
+
+    content.join "\n"
+  end
+
+	def write_to_file(file, content)
+		File.open(file, 'w') do |file|
+			file.write content
+		end
+	end
+
+  private
+
+  def method_missing(symbol, *args)
+    if caller[0][/`([^']*)'/, 1] == '<main>'
+      puts "Unknown command: #{symbol.to_s.sub('_', ' ')}.\n"
+      help
+    else
+      super
+    end
+  end
+
+  def config_path
+    @options[:config_path] || DEFAULT_CONFIG_PATH
+  end
+
+  def server_config_path
+    config_path + '/' + SERVER_CONFIG_NAME
+  end
+
+  def secrets_file_path(generate = false)
+		if generate && @global_config[CONFIG_SECRETS_FILE].nil?
+			@global_config[CONFIG_SECRETS_FILE] ||= config_path + '/' + SERVER_SECRETS_CONFIG_NAME
+		end
+
+    @global_config[CONFIG_SECRETS_FILE]
+  end
+
+  def parse_config
+    @active_repository = nil
+
+    @global_config = {}
+    @repositories = {}
+
+    raise "Config file does not exist: #{server_config_path}" unless File.exists? server_config_path
+    raise "Config file is not readable: #{server_config_path}" unless File.readable? server_config_path
+
+    File.open(server_config_path, 'r').each do |line|
+      parse_config_line line
+    end
+  end
+
+  def parse_config_line(line)
+    fragments = line.strip!.split /\s*=\s*/, 2
+
+    head = fragments.shift
+    tail = fragments.shift
+
+    return unless head && head.length > 0 && head[0] != '#'
+
+    if head =~ /\[.+\]/
+      @active_repository = head[1..-2]
+      @repositories[@active_repository] = {}
+    else
+      if(@active_repository)
+        @repositories[@active_repository][head] = tail
+      else
+        @global_config[head.downcase] = tail
+      end
+    end
+  end
+
+  def parse_secrets_file
+    @users = {}
+
+    return if @global_config[CONFIG_SECRETS_FILE].nil?
+
+    raise "Secrets file does not exist: #{secrets_file_path}" unless File.exists? secrets_file_path
+    raise "Secrets file is not readable: #{secrets_file_path}" unless File.readable? secrets_file_path
+
+    File.open(@global_config[CONFIG_SECRETS_FILE], 'r').each do |line|
+      parse_secrets_line line
+    end
+  end
+
+  def parse_secrets_line(line)
+		line.strip!
+
+    fragments = line.split /\s*:\s*/, 2
+
+    head = fragments.shift
+    tail = fragments.shift || ''
+
+    return unless head && head.length > 0 && head[0] != '#'
+
+    @users[head] = tail
+  end
+
+end
+
+
+
+subject = ARGV.shift || 'help' # get the command subject
+action = ARGV.shift || '' # get the command action
+action = '_' + action if action.length > 0
+
+command = "#{subject.downcase}#{action.downcase}"
+
+begin
+  RsyncConfigurator.new.send command.to_sym, *ARGV
+rescue RuntimeError => e
+  puts e.to_s
+end
+
+
