@@ -14,7 +14,7 @@ class RsyncConfigurator
 
   CONFIG_PATH = 'path'
 
-  CONFIG_READ_ONLY = 'path'
+  CONFIG_READ_ONLY = 'read only'
 
   REPOSITORY_DEV_SUFFIX = '-dev'
 
@@ -47,7 +47,8 @@ class RsyncConfigurator
 
     @repositories[repository_name + REPOSITORY_DEV_SUFFIX] = {
       CONFIG_PATH => "#{REPOSITORY_BASE_PATH}#{repository_name}",
-      CONFIG_AUTH_USERS => write_users.join(', ')
+      CONFIG_AUTH_USERS => write_users.join(', '),
+      CONFIG_READ_ONLY => 'no'
     }
 
     write_user_file = false
@@ -77,7 +78,7 @@ class RsyncConfigurator
 
     puts "Removing repositories and the associated public user..."
     @repositories.delete repository_name
-    @repositories.delete (repository_name + REPOSITORY_DEV_SUFFIX)
+    @repositories.delete(repository_name + REPOSITORY_DEV_SUFFIX)
 
     @users.delete repository_name.downcase
 
@@ -104,7 +105,7 @@ class RsyncConfigurator
       end
     end
 
-    @repositories.select {|key| key !~ /-dev$/}.each do |repo_alias, config|
+    @repositories.select {|key, value| key !~ /-dev$/}.each do |repo_alias, config|
       dev_config = @repositories[repo_alias + '-dev']
 
       content << ""
