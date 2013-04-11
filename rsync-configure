@@ -45,48 +45,48 @@ class RsyncConfigurator
     }
 
     if @users[public_user].nil?
-			write_users << public_user
-		end
+      write_users << public_user
+    end
 
-		write_user_file = false
+    write_user_file = false
 
- 		write_users.each do |user|
- 			if @users[user].nil?
- 				@users[user] = generate_password
- 				puts "Adding new user account #{user}..."
- 				puts "Generated password: #{@users[user]}"
- 				write_user_file = true
- 			end
- 		end
+    write_users.each do |user|
+      if @users[user].nil?
+        @users[user] = generate_password
+        puts "Adding new user account #{user}..."
+        puts "Generated password: #{@users[user]}"
+        write_user_file = true
+      end
+    end
 
- 		if write_user_file
- 			puts "Updating secrets file..."
- 			write_to_file secrets_file_path(true), to_secrets_file
- 			puts "Done."
- 		end
+    if write_user_file
+      puts "Updating secrets file..."
+      write_to_file secrets_file_path(true), to_secrets_file
+      puts "Done."
+    end
 
- 		puts "Updating server config file..."
- 		write_to_file server_config_path, to_config_file
- 		puts "Done."
-	end
+    puts "Updating server config file..."
+    write_to_file server_config_path, to_config_file
+    puts "Done."
+  end
 
   def repo_del(repository_name = nil)
-		raise "Repository name required" if repository_name.nil?
+    raise "Repository name required" if repository_name.nil?
     raise "Unknown repository" if @repositories[repository_name].nil?
 
-		puts "Removing repositories and the associated public user..."
-		@repositories.delete repository_name
-		@repositories.delete (repository_name + REPOSITORY_DEV_SUFFIX)
+    puts "Removing repositories and the associated public user..."
+    @repositories.delete repository_name
+    @repositories.delete (repository_name + REPOSITORY_DEV_SUFFIX)
 
-		@users.delete repository_name.downcase
+    @users.delete repository_name.downcase
 
-		puts "Updating secrets file..."
-		write_to_file secrets_file_path(true), to_secrets_file
-		puts "Done."
-	
- 		puts "Updating server config file..."
- 		write_to_file server_config_path, to_config_file
- 		puts "Done."
+    puts "Updating secrets file..."
+    write_to_file secrets_file_path(true), to_secrets_file
+    puts "Done."
+  
+    puts "Updating server config file..."
+    write_to_file server_config_path, to_config_file
+    puts "Done."
   end
 
   alias_method :repo_delete, :repo_del
@@ -170,7 +170,7 @@ EOL
 
   def generate_password(length = 8)
     pool =  [('a'..'z'),('A'..'Z'),('0'..'9')].map{|i| i.to_a}.flatten
-		(0...length).map{ pool[rand(pool.length)] }.join
+    (0...length).map{ pool[rand(pool.length)] }.join
   end
 
   def to_config_file
@@ -206,11 +206,11 @@ EOL
     content.join "\n"
   end
 
-	def write_to_file(file, content)
-		File.open(file, 'w') do |file|
-			file.write content
-		end
-	end
+  def write_to_file(file, content)
+    File.open(file, 'w') do |file|
+      file.write content
+    end
+  end
 
   private
 
@@ -232,9 +232,9 @@ EOL
   end
 
   def secrets_file_path(generate = false)
-		if generate && @global_config[CONFIG_SECRETS_FILE].nil?
-			@global_config[CONFIG_SECRETS_FILE] ||= config_path + '/' + SERVER_SECRETS_CONFIG_NAME
-		end
+    if generate && @global_config[CONFIG_SECRETS_FILE].nil?
+      @global_config[CONFIG_SECRETS_FILE] ||= config_path + '/' + SERVER_SECRETS_CONFIG_NAME
+    end
 
     @global_config[CONFIG_SECRETS_FILE]
   end
@@ -287,7 +287,7 @@ EOL
   end
 
   def parse_secrets_line(line)
-		line.strip!
+    line.strip!
 
     fragments = line.split /\s*:\s*/, 2
 
