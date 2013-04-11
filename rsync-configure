@@ -43,25 +43,22 @@ class RsyncConfigurator
       CONFIG_AUTH_USERS => public_user
     }
 
+    write_users.reject! { |user| @users[user].nil? }
+
     @repositories[repository_name + REPOSITORY_DEV_SUFFIX] = {
       CONFIG_PATH => "#{REPOSITORY_BASE_PATH}#{repository_name}",
       CONFIG_AUTH_USERS => write_users.join(', ')
     }
 
-    if @users[public_user].nil?
-      write_users << public_user
-    end
-
     write_user_file = false
 
-    write_users.each do |user|
-      if @users[user].nil?
-        @users[user] = generate_password
-        puts "Adding new user account #{user}..."
-        puts "Generated password: #{@users[user]}"
-        write_user_file = true
-      end
+    if @users[public_user].nil?
+      @users[public_user] = generate_password
+      puts "Adding new user account #{public_user}..."
+      puts "Generated password: #{@users[public_user]}"
+      write_user_file = true
     end
+
 
     if write_user_file
       puts "Updating secrets file..."
@@ -230,14 +227,20 @@ class RsyncConfigurator
     puts <<-EOL
 Usage: rsync-configure SUBJECT [ACTION] <params>
 
-Where SUBJECT is one of:
-  repo 
-  user
+  repo add      <repository_name> [<write_access_user>, ...]
+  repo del      <repository_name>
+  repo list
+  repo auth     <repository_name> [--write] [<user_name>, ...]
+  repo revoke   <repository_name> [<user_name>, ...]
 
-and ACTION one of:
-  add
-  del
-  list
+  user add      <user_name> [<password>]
+  user del      <user_name>
+  user list     [--password]
+  user pwd      <user_name> <password>
+
+  dump
+  help
+
 EOL
   end
 
