@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'rbconfig'
+
 class RsyncConfigurator
 
   DEFAULT_CONFIG_PATH = '/etc'
