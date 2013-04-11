@@ -332,8 +332,7 @@ EOL
     end
 
     # cleanup to make sure it always ends in a /
-    @base_repository_path = @base_repository_path
-      .gsub(Regexp.new("#{File::SEPARATOR}+$"), '') + File::SEPARATOR
+    @base_repository_path = @base_repository_path.gsub(Regexp.new("#{File::SEPARATOR}+$"), '') + File::SEPARATOR
   end
 
   def os
