@@ -18,7 +18,7 @@ class RsyncConfigurator
 
   REPOSITORY_DEV_SUFFIX = '-dev'
 
-  REPOSITORY_BASE_PATH = '/Shared Items/rsync_assets/'
+  REPOSITORY_BASE_PATH_ENV = 'RSYNC_REPOSITORY_BASE_PATH'
   
   LIST_WITH_PASSWORD = '--password'
 
@@ -40,14 +40,14 @@ class RsyncConfigurator
     public_user = repository_name.downcase
 
     @repositories[repository_name] = {
-      CONFIG_PATH => "#{REPOSITORY_BASE_PATH}#{repository_name}",
+      CONFIG_PATH => "#{repository_base_path}#{repository_name}",
       CONFIG_AUTH_USERS => public_user
     }
 
     write_users.reject! { |user| @users[user].nil? }
 
     @repositories[repository_name + REPOSITORY_DEV_SUFFIX] = {
-      CONFIG_PATH => "#{REPOSITORY_BASE_PATH}#{repository_name}",
+      CONFIG_PATH => "#{repository_base_path}#{repository_name}",
       CONFIG_AUTH_USERS => write_users.join(', '),
       CONFIG_READ_ONLY => 'no'
     }
@@ -193,7 +193,9 @@ class RsyncConfigurator
 
     puts "Removing user from repositories..."
     @repositories.each do |repository, config|
-      config[CONFIG_AUTH_USERS].split(/\s*,\s*/).delete user_name
+      users = config[CONFIG_AUTH_USERS].split(/\s*,\s*/)
+      users.delete user_name
+      config[CONFIG_AUTH_USERS] = users.join ", "
     end
 
     puts "Removing user entry..."
@@ -314,17 +316,55 @@ EOL
     end
   end
 
+  def repository_base_path
+    return @base_repository_path unless @base_repository_path.nil? || @base_repository_path.empty?
+
+    @base_repository_path = ENV[REPOSITORY_BASE_PATH_ENV]
+    @base_repository_path ||= case os
+      when :macosx
+        '/Shared Items/rsync_assets'
+      when :linux
+        '/var/rsync/rsync_assets'
+      when :unix
+        '/var/rsync/rsync_assets'
+      else
+        raise "Unable to define a default path. Please specify an environment variable #{REPOSITORY_BASE_PATH_ENV} pointing at a suitable location."
+    end
+
+    # cleanup to make sure it always ends in a /
+    @base_repository_path = @base_repository_path
+      .gsub(Regexp.new("#{File::SEPARATOR}+$"), '') + File::SEPARATOR
+  end
+
+  def os
+    @os ||= (
+      host_os = RbConfig::CONFIG['host_os']
+      case host_os
+      when /mswin|msys|mingw|cygwin|bccwin|wince|emc/
+        :windows
+      when /darwin|mac os/
+        :macosx
+      when /linux/
+        :linux
+      when /solaris|bsd/
+        :unix
+      else
+        raise "Unknown os: #{host_os.inspect}"
+      end
+    )
+  end
+
   def config_path
     @options[:config_path] || DEFAULT_CONFIG_PATH
   end
 
   def server_config_path
-    config_path + '/' + SERVER_CONFIG_NAME
+    config_path + File::SEPARATOR + SERVER_CONFIG_NAME
   end
 
   def secrets_file_path(generate = false)
     if generate && @global_config[CONFIG_SECRETS_FILE].nil?
-      @global_config[CONFIG_SECRETS_FILE] ||= config_path + '/' + SERVER_SECRETS_CONFIG_NAME
+      @global_config[CONFIG_SECRETS_FILE] ||= config_path + File::SEPARATOR + SERVER_SECRETS_CONFIG_NAME
     end
 
     @global_config[CONFIG_SECRETS_FILE]
