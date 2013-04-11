@@ -19,6 +19,8 @@ class RsyncConfigurator
   REPOSITORY_DEV_SUFFIX = '-dev'
 
   REPOSITORY_BASE_PATH = '/Shared Items/rsync_assets/'
+  
+  LIST_WITH_PASSWORD = '--password'
 
   def initialize(options = {})
     @options = options
@@ -62,15 +64,15 @@ class RsyncConfigurator
     if write_user_file
       puts "Updating secrets file..."
       write_to_file secrets_file_path(true), to_secrets_file
-      puts "Done."
     end
 
     puts "Updating server config file..."
     write_to_file server_config_path, to_config_file
+
     puts "Done."
   end
 
-  def repo_del(repository_name = nil)
+  def repo_del(repository_name = nil, *options)
     raise "Repository name required" if repository_name.nil?
     raise "Unknown repository" if @repositories[repository_name].nil?
 
@@ -82,16 +84,16 @@ class RsyncConfigurator
 
     puts "Updating secrets file..."
     write_to_file secrets_file_path(true), to_secrets_file
-    puts "Done."
   
     puts "Updating server config file..."
     write_to_file server_config_path, to_config_file
+
     puts "Done."
   end
 
   alias_method :repo_delete, :repo_del
 
-  def repo_list
+  def repo_list(*options)
     content = []
 
     content << 'Defined repositories'
@@ -117,24 +119,66 @@ class RsyncConfigurator
     puts content.join "\n"
   end
 
-  def user_add
-    puts "user_add"
+  def user_add(user_name = nil, password = nil, *options)
+    raise "User name is required" if user_name.nil?
+    raise "User is already registered" unless @users[user_name].nil?
+
+    password ||= generate_password
+
+    @users[user_name] = password
+   
+    puts "Updating secrets file..."
+    write_to_file secrets_file_path(true), to_secrets_file
+
+    puts "Done."
   end
 
-  def user_del
-    puts "user_del"
+  def user_pwd(user_name = nil, password = nil, *options)
+    raise "User name is required" if user_name.nil?
+    raise "Password is required" if password.nil?
+    raise "Unknown user" if @users[user_name].nil?
+
+    @users[user_name] = password
+   
+    puts "Updating secrets file..."
+    write_to_file secrets_file_path(true), to_secrets_file
+
+    puts "Done."
+  end
+
+  def user_del(user_name = nil, *options)
+    raise "User name is required" if user_name.nil?
+    raise "Unknown user" if @users[user_name].nil?
+
+    puts "Removing user from repositories..."
+    @repositories.each do |repository, config|
+      config[CONFIG_AUTH_USERS].split(/\s*,\s*/).delete user_name
+    end
+
+    puts "Removing user entry..."
+    @users.delete user_name
+
+    puts "Updating secrets file..."
+    write_to_file secrets_file_path(true), to_secrets_file
+
+    puts "Updating server config file..."
+    write_to_file server_config_path, to_config_file
+
+    puts "Done."
   end
 
   alias_method :user_delete, :user_del
 
-  def user_list
+  def user_list(*options)
+    with_passwords = options.include? LIST_WITH_PASSWORD
     content = []
 
     content << 'Defined users'
+    content << '-------------'
+    content << ""
 
-    @users.each do |handle|
-      content << ""
-      content << handle
+    @users.each do |handle, password|
+      content << handle + (with_passwords ? " : " + password : "")
     end
 
     puts content.join "\n"
