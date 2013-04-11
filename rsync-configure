@@ -22,6 +22,8 @@ class RsyncConfigurator
   
   LIST_WITH_PASSWORD = '--password'
 
+  AUTH_MODE_WRITE_OPTION = '--write'
+
   def initialize(options = {})
     @options = options
     parse_config
@@ -117,6 +119,46 @@ class RsyncConfigurator
     end
 
     puts content.join "\n"
+  end
+
+  def repo_auth(repository_name = nil, *user_names)
+    raise "Repository name required" if repository_name.nil?
+
+    if user_names[0] == AUTH_MODE_WRITE_OPTION
+      user_names.shift
+      repository_name += REPOSITORY_DEV_SUFFIX
+    end
+    
+    raise "Unknown repository" if @repositories[repository_name].nil?
+
+    users = @repositories[repository_name][CONFIG_AUTH_USERS].split(/\s*,\s*/)
+    user_names.each do |new_user|
+      users << new_user unless @users[new_user].nil?
+    end
+    users.uniq!
+    @repositories[repository_name][CONFIG_AUTH_USERS] = users.join ", "
+
+    puts "Updating server config file..."
+    write_to_file server_config_path, to_config_file
+  end
+
+  def repo_revoke(repository_name = nil, *user_names)
+    raise "Repository name required" if repository_name.nil?
+    raise "Unknown repository" if @repositories[repository_name].nil?
+
+    update = Proc.new do |repository|
+      users = repository[CONFIG_AUTH_USERS].split(/\s*,\s*/)
+      user_names.each do |new_user|
+        users.delete new_user 
+      end
+      repository[CONFIG_AUTH_USERS] = users.join ", "
+    end
+
+    update.call @repositories[repository_name]
+    update.call @repositories[repository_name + REPOSITORY_DEV_SUFFIX]
+
+    puts "Updating server config file..."
+    write_to_file server_config_path, to_config_file
   end
 
   def user_add(user_name = nil, password = nil, *options)
