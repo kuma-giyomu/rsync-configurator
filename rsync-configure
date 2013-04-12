@@ -64,9 +64,13 @@ class RsyncConfigurator
       write_user_file = true
     end
 
-    unless Dir.exists? repository_path
+    unless File.directory? repository_path
       Dir.mkdir repository_path
-      File.chown ENV['SUDO_UID'], ENV['SUDO_GID'], repository_path
+      uid = nil
+      gid = nil
+      uid = ENV['SUDO_UID'].to_i unless ENV['SUDO_UID'].nil?
+      gid = ENV['SUDO_GID'].to_i unless ENV['SUDO_GID'].nil?	
+      File.chown uid, gid, repository_path
     end
 
     if write_user_file
