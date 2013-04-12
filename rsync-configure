@@ -40,16 +40,17 @@ class RsyncConfigurator
     raise "Invalid repository name, only alphanumerics, hyphens and underscore allowed" unless repository_name =~ /^[a-zA-Z0-9_-]+$/
 
     public_user = repository_name.downcase
+    repository_path = "#{repository_base_path}#{repository_name}"
 
     @repositories[repository_name] = {
-      CONFIG_PATH => "#{repository_base_path}#{repository_name}",
+      CONFIG_PATH => "#{repository_path}",
       CONFIG_AUTH_USERS => public_user
     }
 
     write_users.reject! { |user| @users[user].nil? }
 
     @repositories[repository_name + REPOSITORY_DEV_SUFFIX] = {
-      CONFIG_PATH => "#{repository_base_path}#{repository_name}",
+      CONFIG_PATH => "#{repository_path}",
       CONFIG_AUTH_USERS => write_users.join(', '),
       CONFIG_READ_ONLY => 'no'
     }
@@ -63,6 +64,10 @@ class RsyncConfigurator
       write_user_file = true
     end
 
+    unless Dir.exists? repository_path
+      Dir.mkdir repository_path
+      File.chown ENV['SUDO_UID'], ENV['SUDO_GID'], repository_path
+    end
 
     if write_user_file
       puts "Updating secrets file..."
